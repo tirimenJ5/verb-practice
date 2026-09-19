@@ -316,22 +316,44 @@
         }
       }
       function saveStats() {
-        localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+        // iPhoneのプライバシー設定（Cookieブロック等）でlocalStorageが書き込めない場合でも
+        // アプリの動作自体は止めない。ただしその場合は次回起動時に記録が消えている点に注意。
+        try {
+          localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+        } catch (e) {
+          console.warn("苦手リストの保存に失敗しました（この端末のブラウザ設定による可能性があります）", e);
+        }
       }
       let stats = loadStats();
+
+      // 直近に出題したキーを覚えておき、同じ問題が連続で出ないようにする（間隔をあける）
+      const RECENT_LIMIT = 4;
+      const recentKeys = [];
+      function rememberRecent(key) {
+        recentKeys.push(key);
+        while (recentKeys.length > RECENT_LIMIT) recentKeys.shift();
+      }
 
       function itemKey(verb, personIdx) {
         return `${verb.inf}|${personIdx}`;
       }
 
+      // 苦手から卒業するには「連続3回正解」が必要（1回では外れない）
+      const STREAK_TO_CLEAR = 3;
+
       function recordResult(verb, personIdx, gotItRight) {
         const key = itemKey(verb, personIdx);
-        const s = stats[key] || { wrong: 0, correct: 0, needsReview: false };
+        const s = stats[key] || { wrong: 0, correct: 0, correctStreak: 0, needsReview: false };
         if (gotItRight) {
           s.correct += 1;
-          s.needsReview = false; // 1回正解できたら苦手リストから外す
+          s.correctStreak += 1;
+          if (s.needsReview && s.correctStreak >= STREAK_TO_CLEAR) {
+            s.needsReview = false;
+            s.correctStreak = 0;
+          }
         } else {
           s.wrong += 1;
+          s.correctStreak = 0;
           s.needsReview = true;
         }
         stats[key] = s;
@@ -381,19 +403,24 @@
       }
 
       function weightedPick(combos) {
-        const weights = combos.map((c) => (c.needsReview ? 5 : 1)); // 苦手は5倍出やすい
+        // 直近に出した問題は除外して間隔をあける（候補が少なくなりすぎる場合は除外しない）
+        const fresh = combos.filter((c) => !recentKeys.includes(itemKey(c.verb, c.personIdx)));
+        const pickFrom = fresh.length >= 2 ? fresh : combos;
+
+        const weights = pickFrom.map((c) => (c.needsReview ? 5 : 1)); // 苦手は5倍出やすい
         const total = weights.reduce((a, b) => a + b, 0);
         let r = Math.random() * total;
-        for (let i = 0; i < combos.length; i++) {
+        for (let i = 0; i < pickFrom.length; i++) {
           r -= weights[i];
-          if (r <= 0) return combos[i];
+          if (r <= 0) return pickFrom[i];
         }
-        return combos[combos.length - 1];
+        return pickFrom[pickFrom.length - 1];
       }
 
       function nextQuestion() {
         const combos = buildCombos();
         const { verb, personIdx } = weightedPick(combos);
+        rememberRecent(itemKey(verb, personIdx));
         state.current = { verb, personIdx };
         state.answered = false;
 
