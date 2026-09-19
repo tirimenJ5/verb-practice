@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="theme-color" content="#f8fafc" />
-    <title>動詞活用練習（スペイン語）</title>
+    <title>動詞活用練習</title>
     <style>
       :root { color-scheme: light dark; }
       * { box-sizing: border-box; }
@@ -199,21 +199,22 @@
     </style>
   </head>
   <body>
-    <h1>動詞活用練習 🇪🇸 スペイン語（直説法）</h1>
-    <div class="note">テキスト入力版 — 発音判定なし ／ 収録動詞 31種（規則17・不規則14）× 6人称 × 5時制</div>
+    <h1 id="appTitle">動詞活用練習</h1>
+    <div class="note" id="appNote">テキスト入力版 — 発音判定なし</div>
 
     <div class="toolbar">
+      <label class="chk"><input type="radio" name="langRadio" class="langRadio" value="es" checked /> 🇪🇸 スペイン語</label>
+      <label class="chk"><input type="radio" name="langRadio" class="langRadio" value="tr" /> 🇹🇷 トルコ語</label>
+    </div>
+
+    <div class="toolbar" id="typeToolbar">
       <label class="chk"><input type="checkbox" id="fRegular" checked /> 規則動詞</label>
       <label class="chk"><input type="checkbox" id="fIrregular" checked /> 不規則動詞</label>
+    </div>
+    <div class="toolbar">
       <label class="chk"><input type="checkbox" id="fWeakOnly" /> 苦手だけ出題</label>
     </div>
-    <div class="toolbar" id="tenseToolbar">
-      <label class="chk"><input type="checkbox" class="tenseChk" data-tense="presente" checked /> 現在形</label>
-      <label class="chk"><input type="checkbox" class="tenseChk" data-tense="indefinido" /> 点過去</label>
-      <label class="chk"><input type="checkbox" class="tenseChk" data-tense="imperfecto" /> 線過去</label>
-      <label class="chk"><input type="checkbox" class="tenseChk" data-tense="futuro" /> 未来形</label>
-      <label class="chk"><input type="checkbox" class="tenseChk" data-tense="condicional" /> 過去未来形</label>
-    </div>
+    <div class="toolbar" id="tenseToolbar"></div>
 
     <div class="summary">
       <span class="chip" id="scoreChip">0 / 0 問正解</span>
@@ -251,26 +252,47 @@
     <footer>正解数・連続正解はこの端末のブラウザ内にのみ保存されます</footer>
 
     <script>
-      // ---- データ：スペイン語 現在形 活用 ----
-      // conj = [yo, tú, él/ella/usted, nosotros, vosotros, ellos/ellas/ustedes]
-      const PERSONS = [
+      // ==== 言語ごとのデータ・挙動を1か所にまとめる ====
+
+      function stripAccentsEs(s) {
+        return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      }
+      function trAsciiFold(s) {
+        return s
+          .replace(/ı/g, "i")
+          .replace(/ğ/g, "g")
+          .replace(/ü/g, "u")
+          .replace(/ş/g, "s")
+          .replace(/ö/g, "o")
+          .replace(/ç/g, "c");
+      }
+
+      const LANGUAGES = {
+        es: {
+          key: "es",
+          label: "🇪🇸 スペイン語",
+          titleSuffix: "（直説法）",
+          ttsLang: "es-ES",
+          hasVerbTypes: true,
+          persons: [
+
         { key: "yo", es: "yo", ja: "私は" },
         { key: "tu", es: "tú", ja: "あなたは・君は" },
         { key: "el", es: "él / ella / usted", ja: "彼は・彼女は・あなたは（丁寧）" },
         { key: "nosotros", es: "nosotros", ja: "私たちは" },
         { key: "vosotros", es: "vosotros", ja: "あなたたちは・君たちは" },
         { key: "ellos", es: "ellos / ellas / ustedes", ja: "彼らは・彼女らは・あなたたちは（丁寧）" },
-      ];
+          ],
+          tenses: [
 
-      const TENSES = [
         { key: "presente", ja: "現在形" },
         { key: "indefinido", ja: "点過去" },
         { key: "imperfecto", ja: "線過去" },
         { key: "futuro", ja: "未来形" },
         { key: "condicional", ja: "過去未来形" },
-      ];
+          ],
+          verbs: [
 
-      const VERBS = [
         // 規則動詞
         { inf: "hablar", ja: "話す", type: "regular", conj: { presente: ["hablo", "hablas", "habla", "hablamos", "habláis", "hablan"], indefinido: ["hablé", "hablaste", "habló", "hablamos", "hablasteis", "hablaron"], imperfecto: ["hablaba", "hablabas", "hablaba", "hablábamos", "hablabais", "hablaban"], futuro: ["hablaré", "hablarás", "hablará", "hablaremos", "hablaréis", "hablarán"], condicional: ["hablaría", "hablarías", "hablaría", "hablaríamos", "hablaríais", "hablarían"] } },
         { inf: "cantar", ja: "歌う", type: "regular", conj: { presente: ["canto", "cantas", "canta", "cantamos", "cantáis", "cantan"], indefinido: ["canté", "cantaste", "cantó", "cantamos", "cantasteis", "cantaron"], imperfecto: ["cantaba", "cantabas", "cantaba", "cantábamos", "cantabais", "cantaban"], futuro: ["cantaré", "cantarás", "cantará", "cantaremos", "cantaréis", "cantarán"], condicional: ["cantaría", "cantarías", "cantaría", "cantaríamos", "cantaríais", "cantarían"] } },
@@ -304,16 +326,70 @@
         { inf: "saber", ja: "知っている", type: "irregular", conj: { presente: ["sé", "sabes", "sabe", "sabemos", "sabéis", "saben"], indefinido: ["supe", "supiste", "supo", "supimos", "supisteis", "supieron"], imperfecto: ["sabía", "sabías", "sabía", "sabíamos", "sabíais", "sabían"], futuro: ["sabré", "sabrás", "sabrá", "sabremos", "sabréis", "sabrán"], condicional: ["sabría", "sabrías", "sabría", "sabríamos", "sabríais", "sabrían"] } },
         { inf: "poner", ja: "置く", type: "irregular", conj: { presente: ["pongo", "pones", "pone", "ponemos", "ponéis", "ponen"], indefinido: ["puse", "pusiste", "puso", "pusimos", "pusisteis", "pusieron"], imperfecto: ["ponía", "ponías", "ponía", "poníamos", "poníais", "ponían"], futuro: ["pondré", "pondrás", "pondrá", "pondremos", "pondréis", "pondrán"], condicional: ["pondría", "pondrías", "pondría", "pondríamos", "pondríais", "pondrían"] } },
         { inf: "salir", ja: "出る・出かける", type: "irregular", conj: { presente: ["salgo", "sales", "sale", "salimos", "salís", "salen"], indefinido: ["salí", "saliste", "salió", "salimos", "salisteis", "salieron"], imperfecto: ["salía", "salías", "salía", "salíamos", "salíais", "salían"], futuro: ["saldré", "saldrás", "saldrá", "saldremos", "saldréis", "saldrán"], condicional: ["saldría", "saldrías", "saldría", "saldríamos", "saldríais", "saldrían"] } },
-      ];
+          ],
+          closeLabel: "△ おしい（アクセント記号を確認）",
+          normalize: (s) => (s || "").trim().toLowerCase(),
+          closeMatch: (a, b) => stripAccentsEs(a) === stripAccentsEs(b),
+          personLabel: (p) => p.es,
+          speakText: (p, form) => `${p.es.split(" / ")[0]} ${form}`,
+        },
+        tr: {
+          key: "tr",
+          label: "🇹🇷 トルコ語",
+          titleSuffix: "（現在形）",
+          ttsLang: "tr-TR",
+          hasVerbTypes: false,
+          persons: [
+            { key: "ben", es: "ben", ja: "私は" },
+            { key: "sen", es: "sen", ja: "君は・あなたは（親しい間柄）" },
+            { key: "o", es: "o", ja: "彼は・彼女は・それは" },
+            { key: "biz", es: "biz", ja: "私たちは" },
+            { key: "siz", es: "siz", ja: "あなたたちは・あなたは（丁寧）" },
+            { key: "onlar", es: "onlar", ja: "彼らは・彼女らは・それらは" },
+          ],
+          tenses: [
+            { key: "suan", ja: "現在形（〜している）" },
+          ],
+          verbs: [
+        { inf: "gelmek", ja: "来る", conj: { suan: ["geliyorum", "geliyorsun", "geliyor", "geliyoruz", "geliyorsunuz", "geliyorlar"] } },
+        { inf: "gitmek", ja: "行く", conj: { suan: ["gidiyorum", "gidiyorsun", "gidiyor", "gidiyoruz", "gidiyorsunuz", "gidiyorlar"] } },
+        { inf: "yapmak", ja: "する・作る", conj: { suan: ["yapıyorum", "yapıyorsun", "yapıyor", "yapıyoruz", "yapıyorsunuz", "yapıyorlar"] } },
+        { inf: "yemek", ja: "食べる", conj: { suan: ["yiyorum", "yiyorsun", "yiyor", "yiyoruz", "yiyorsunuz", "yiyorlar"] } },
+        { inf: "içmek", ja: "飲む", conj: { suan: ["içiyorum", "içiyorsun", "içiyor", "içiyoruz", "içiyorsunuz", "içiyorlar"] } },
+        { inf: "okumak", ja: "読む", conj: { suan: ["okuyorum", "okuyorsun", "okuyor", "okuyoruz", "okuyorsunuz", "okuyorlar"] } },
+        { inf: "yazmak", ja: "書く", conj: { suan: ["yazıyorum", "yazıyorsun", "yazıyor", "yazıyoruz", "yazıyorsunuz", "yazıyorlar"] } },
+        { inf: "konuşmak", ja: "話す", conj: { suan: ["konuşuyorum", "konuşuyorsun", "konuşuyor", "konuşuyoruz", "konuşuyorsunuz", "konuşuyorlar"] } },
+        { inf: "çalışmak", ja: "働く・勉強する", conj: { suan: ["çalışıyorum", "çalışıyorsun", "çalışıyor", "çalışıyoruz", "çalışıyorsunuz", "çalışıyorlar"] } },
+        { inf: "sevmek", ja: "好き・愛する", conj: { suan: ["seviyorum", "seviyorsun", "seviyor", "seviyoruz", "seviyorsunuz", "seviyorlar"] } },
+        { inf: "bilmek", ja: "知っている", conj: { suan: ["biliyorum", "biliyorsun", "biliyor", "biliyoruz", "biliyorsunuz", "biliyorlar"] } },
+        { inf: "görmek", ja: "見る", conj: { suan: ["görüyorum", "görüyorsun", "görüyor", "görüyoruz", "görüyorsunuz", "görüyorlar"] } },
+        { inf: "istemek", ja: "欲しい・望む", conj: { suan: ["istiyorum", "istiyorsun", "istiyor", "istiyoruz", "istiyorsunuz", "istiyorlar"] } },
+        { inf: "beklemek", ja: "待つ", conj: { suan: ["bekliyorum", "bekliyorsun", "bekliyor", "bekliyoruz", "bekliyorsunuz", "bekliyorlar"] } },
+        { inf: "uyumak", ja: "寝る", conj: { suan: ["uyuyorum", "uyuyorsun", "uyuyor", "uyuyoruz", "uyuyorsunuz", "uyuyorlar"] } },
+        { inf: "anlamak", ja: "理解する", conj: { suan: ["anlıyorum", "anlıyorsun", "anlıyor", "anlıyoruz", "anlıyorsunuz", "anlıyorlar"] } },
+        { inf: "açmak", ja: "開ける", conj: { suan: ["açıyorum", "açıyorsun", "açıyor", "açıyoruz", "açıyorsunuz", "açıyorlar"] } },
+        { inf: "çıkmak", ja: "出る・出かける", conj: { suan: ["çıkıyorum", "çıkıyorsun", "çıkıyor", "çıkıyoruz", "çıkıyorsunuz", "çıkıyorlar"] } },
+          ],
+          closeLabel: "△ おしい（ı/i、ş/ğ/ü/ö/ç などのつづりを確認）",
+          normalize: (s) => (s || "").trim().toLocaleLowerCase("tr-TR"),
+          closeMatch: (a, b) => trAsciiFold(a) === trAsciiFold(b),
+          personLabel: (p) => p.es,
+          speakText: (p, form) => `${p.es} ${form}`,
+        },
+      };
 
       // ---- 状態 ----
-      const state = { correct: 0, total: 0, streak: 0, current: null, answered: false };
+      const state = { correct: 0, total: 0, streak: 0, current: null, answered: false, lang: "es" };
 
       const el = (id) => document.getElementById(id);
+      const langRadios = Array.from(document.querySelectorAll(".langRadio"));
+      const typeToolbar = el("typeToolbar");
       const fRegular = el("fRegular");
       const fIrregular = el("fIrregular");
       const fWeakOnly = el("fWeakOnly");
-      const tenseChks = Array.from(document.querySelectorAll(".tenseChk"));
+      const tenseToolbar = el("tenseToolbar");
+      const appTitle = el("appTitle");
+      const appNote = el("appNote");
       const promptTense = el("promptTense");
       const promptPerson = el("promptPerson");
       const promptJa = el("promptJa");
@@ -332,11 +408,17 @@
       const weakChip = el("weakChip");
       const resetWeakBtn = el("resetWeakBtn");
 
-      // ---- 苦手トラッキング（この端末のブラウザ内にのみ保存） ----
-      const STATS_KEY = "verbPracticeStats_es_v2"; // v2: 時制を追加したためキー形式が変わり別領域に保存
+      function currentLang() {
+        return LANGUAGES[state.lang];
+      }
+
+      // ---- 苦手トラッキング（この端末のブラウザ内にのみ保存。言語ごとに別領域） ----
+      function statsKey() {
+        return `verbPracticeStats_${state.lang}_v1`;
+      }
       function loadStats() {
         try {
-          return JSON.parse(localStorage.getItem(STATS_KEY)) || {};
+          return JSON.parse(localStorage.getItem(statsKey())) || {};
         } catch (e) {
           return {};
         }
@@ -345,7 +427,7 @@
         // iPhoneのプライバシー設定（Cookieブロック等）でlocalStorageが書き込めない場合でも
         // アプリの動作自体は止めない。ただしその場合は次回起動時に記録が消えている点に注意。
         try {
-          localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+          localStorage.setItem(statsKey(), JSON.stringify(stats));
         } catch (e) {
           console.warn("苦手リストの保存に失敗しました（この端末のブラウザ設定による可能性があります）", e);
         }
@@ -354,7 +436,7 @@
 
       // 直近に出題したキーを覚えておき、同じ問題が連続で出ないようにする（間隔をあける）
       const RECENT_LIMIT = 4;
-      const recentKeys = [];
+      let recentKeys = [];
       function rememberRecent(key) {
         recentKeys.push(key);
         while (recentKeys.length > RECENT_LIMIT) recentKeys.shift();
@@ -395,34 +477,32 @@
         weakChip.textContent = `苦手 ${weakCount()}件`;
       }
 
-      function stripAccents(s) {
-        return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
-      }
-      function normalize(s) {
-        return (s || "").trim().toLowerCase();
-      }
-
       function typeFilteredVerbs() {
+        const lang = currentLang();
+        if (!lang.hasVerbTypes) return lang.verbs;
         const types = [];
         if (fRegular.checked) types.push("regular");
         if (fIrregular.checked) types.push("irregular");
-        const verbs = VERBS.filter((v) => types.includes(v.type));
-        return verbs.length ? verbs : VERBS;
+        const verbs = lang.verbs.filter((v) => types.includes(v.type));
+        return verbs.length ? verbs : lang.verbs;
       }
 
       function selectedTenses() {
-        const selected = tenseChks.filter((c) => c.checked).map((c) => c.dataset.tense);
-        return selected.length ? selected : ["presente"];
+        const lang = currentLang();
+        const chks = Array.from(tenseToolbar.querySelectorAll(".tenseChk"));
+        const selected = chks.filter((c) => c.checked).map((c) => c.dataset.tense);
+        return selected.length ? selected : [lang.tenses[0].key];
       }
 
       // 動詞×6人称×選択中の時制、の全組み合わせを作り、苦手（needsReview）なものほど出やすくする
       function buildCombos() {
         const verbs = typeFilteredVerbs();
         const tenses = selectedTenses();
+        const persons = currentLang().persons;
         const combos = [];
         verbs.forEach((verb) => {
           tenses.forEach((tenseKey) => {
-            PERSONS.forEach((_, personIdx) => {
+            persons.forEach((_, personIdx) => {
               const s = stats[itemKey(verb, personIdx, tenseKey)];
               combos.push({ verb, personIdx, tenseKey, needsReview: !!(s && s.needsReview) });
             });
@@ -451,6 +531,51 @@
         return pickFrom[pickFrom.length - 1];
       }
 
+      function buildTenseToolbar() {
+        const lang = currentLang();
+        tenseToolbar.innerHTML = lang.tenses
+          .map(
+            (t, i) =>
+              `<label class="chk"><input type="checkbox" class="tenseChk" data-tense="${t.key}" ${i === 0 ? "checked" : ""} /> ${t.ja}</label>`
+          )
+          .join("");
+        Array.from(tenseToolbar.querySelectorAll(".tenseChk")).forEach((chk) => {
+          chk.addEventListener("change", () => {
+            const chks = Array.from(tenseToolbar.querySelectorAll(".tenseChk"));
+            if (!chks.some((c) => c.checked)) chk.checked = true; // 最低1つは選択状態を維持
+            nextQuestion();
+          });
+        });
+      }
+
+      function updateHeaderText() {
+        const lang = currentLang();
+        appTitle.textContent = `動詞活用練習 ${lang.label}${lang.titleSuffix}`;
+        appNote.textContent = `テキスト入力版 — 発音判定なし ／ 収録動詞 ${lang.verbs.length}種 × ${lang.persons.length}人称 × ${lang.tenses.length}時制`;
+      }
+
+      function switchLanguage(langKey) {
+        state.lang = langKey;
+        typeToolbar.classList.toggle("hidden", !currentLang().hasVerbTypes);
+        fRegular.checked = true;
+        fIrregular.checked = true;
+        fWeakOnly.checked = false;
+        buildTenseToolbar();
+        updateHeaderText();
+        stats = loadStats();
+        recentKeys = [];
+        state.correct = 0;
+        state.total = 0;
+        state.streak = 0;
+        scoreChip.textContent = "0 / 0 問正解";
+        streakChip.textContent = "連続正解 0";
+        updateWeakChip();
+        try {
+          localStorage.setItem("verbPracticeLang", langKey);
+        } catch (e) {}
+        nextQuestion();
+      }
+
       function nextQuestion() {
         const combos = buildCombos();
         const { verb, personIdx, tenseKey } = weightedPick(combos);
@@ -458,10 +583,11 @@
         state.current = { verb, personIdx, tenseKey };
         state.answered = false;
 
-        const person = PERSONS[personIdx];
-        const tense = TENSES.find((t) => t.key === tenseKey);
+        const lang = currentLang();
+        const person = lang.persons[personIdx];
+        const tense = lang.tenses.find((t) => t.key === tenseKey);
         promptTense.textContent = tense.ja;
-        promptPerson.textContent = `${person.es}（${person.ja}）`;
+        promptPerson.textContent = `${lang.personLabel(person)}（${person.ja}）`;
         promptJa.textContent = verb.ja;
         promptInf.textContent = verb.inf;
 
@@ -483,16 +609,17 @@
 
       function checkAnswer() {
         if (state.answered) return;
+        const lang = currentLang();
         const { verb, personIdx, tenseKey } = state.current;
         const correct = verb.conj[tenseKey][personIdx];
         const userRaw = answerInput.value;
-        const user = normalize(userRaw);
-        const correctNorm = normalize(correct);
+        const user = lang.normalize(userRaw);
+        const correctNorm = lang.normalize(correct);
 
         let status; // "correct" | "close" | "wrong"
         if (user === correctNorm) {
           status = "correct";
-        } else if (user && stripAccents(user) === stripAccents(correctNorm)) {
+        } else if (user && lang.closeMatch(user, correctNorm)) {
           status = "close";
         } else {
           status = "wrong";
@@ -515,13 +642,13 @@
           resultMark.textContent = "◯ 正解！";
           yourAnswer.textContent = "";
         } else if (status === "close") {
-          resultMark.textContent = "△ おしい（アクセント記号を確認）";
+          resultMark.textContent = lang.closeLabel;
           yourAnswer.textContent = userRaw ? `あなたの回答: ${userRaw}` : "";
         } else {
           resultMark.textContent = "✕ 不正解";
           yourAnswer.textContent = userRaw ? `あなたの回答: ${userRaw}` : "（未入力）";
         }
-        correctAnswer.textContent = `正解: ${PERSONS[personIdx].es} ${correct}`;
+        correctAnswer.textContent = `正解: ${lang.personLabel(lang.persons[personIdx])} ${correct}`;
 
         recordResult(verb, personIdx, tenseKey, status === "correct");
 
@@ -531,6 +658,7 @@
 
       function skip() {
         if (state.answered) return;
+        const lang = currentLang();
         const { verb, personIdx, tenseKey } = state.current;
         state.answered = true;
         state.total += 1;
@@ -541,7 +669,7 @@
         resultBox.classList.add("show", "wrong");
         resultMark.textContent = "→ スキップ";
         yourAnswer.textContent = "";
-        correctAnswer.textContent = `正解: ${PERSONS[personIdx].es} ${verb.conj[tenseKey][personIdx]}`;
+        correctAnswer.textContent = `正解: ${lang.personLabel(lang.persons[personIdx])} ${verb.conj[tenseKey][personIdx]}`;
         recordResult(verb, personIdx, tenseKey, false);
         answerInput.disabled = true;
         checkBtn.disabled = true;
@@ -551,8 +679,9 @@
       skipBtn.addEventListener("click", skip);
       nextBtn.addEventListener("click", nextQuestion);
       speakBtn.addEventListener("click", () => {
+        const lang = currentLang();
         const { verb, personIdx, tenseKey } = state.current;
-        speak(`${PERSONS[personIdx].es.split(" / ")[0]} ${verb.conj[tenseKey][personIdx]}`, "es-ES");
+        speak(lang.speakText(lang.persons[personIdx], verb.conj[tenseKey][personIdx]), lang.ttsLang);
       });
       answerInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
@@ -562,15 +691,16 @@
       });
       fRegular.addEventListener("change", () => {
         if (!fRegular.checked && !fIrregular.checked) fIrregular.checked = true;
+        nextQuestion();
       });
       fIrregular.addEventListener("change", () => {
         if (!fRegular.checked && !fIrregular.checked) fRegular.checked = true;
+        nextQuestion();
       });
       fWeakOnly.addEventListener("change", nextQuestion);
-      tenseChks.forEach((chk) => {
-        chk.addEventListener("change", () => {
-          if (!tenseChks.some((c) => c.checked)) chk.checked = true; // 最低1つは選択状態を維持
-          nextQuestion();
+      langRadios.forEach((r) => {
+        r.addEventListener("change", () => {
+          if (r.checked) switchLanguage(r.value);
         });
       });
       resetWeakBtn.addEventListener("click", () => {
@@ -581,8 +711,23 @@
         nextQuestion();
       });
 
-      updateWeakChip();
-      nextQuestion();
+      // ---- 初期化 ----
+      (function init() {
+        let savedLang = "es";
+        try {
+          const saved = localStorage.getItem("verbPracticeLang");
+          if (saved && LANGUAGES[saved]) savedLang = saved;
+        } catch (e) {}
+        state.lang = savedLang;
+        langRadios.forEach((r) => {
+          r.checked = r.value === savedLang;
+        });
+        typeToolbar.classList.toggle("hidden", !currentLang().hasVerbTypes);
+        buildTenseToolbar();
+        updateHeaderText();
+        updateWeakChip();
+        nextQuestion();
+      })();
     </script>
   </body>
 </html>
