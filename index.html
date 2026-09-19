@@ -83,12 +83,12 @@
         margin-bottom: 6px;
       }
       .prompt-person {
-        font-size: 13px;
+        font-size: 17px;
         color: #64748b;
         margin-bottom: 4px;
       }
       .prompt-infinitive {
-        font-size: 12px;
+        font-size: 16px;
         color: #94a3b8;
         margin-bottom: 16px;
       }
@@ -173,20 +173,38 @@
         margin-top: 24px;
       }
       .hidden { display: none !important; }
+      .link-btn {
+        margin-top: 10px;
+        background: none;
+        border: none;
+        color: #94a3b8;
+        font-size: 11px;
+        text-decoration: underline;
+        min-height: auto;
+        padding: 4px;
+        flex: none;
+        font-weight: 400;
+      }
+      .weak-row { text-align: center; }
     </style>
   </head>
   <body>
     <h1>動詞活用練習 🇪🇸 スペイン語（現在形）</h1>
-    <div class="note">テキスト入力版 — 発音判定なし</div>
+    <div class="note">テキスト入力版 — 発音判定なし ／ 収録動詞 31種（規則17・不規則14）× 6人称</div>
 
     <div class="toolbar">
       <label class="chk"><input type="checkbox" id="fRegular" checked /> 規則動詞</label>
       <label class="chk"><input type="checkbox" id="fIrregular" checked /> 不規則動詞</label>
+      <label class="chk"><input type="checkbox" id="fWeakOnly" /> 苦手だけ出題</label>
     </div>
 
     <div class="summary">
       <span class="chip" id="scoreChip">0 / 0 問正解</span>
       <span class="chip" id="streakChip">連続正解 0</span>
+      <span class="chip" id="weakChip">苦手 0件</span>
+    </div>
+    <div class="weak-row">
+      <button type="button" class="link-btn" id="resetWeakBtn">苦手リストをリセット</button>
     </div>
 
     <div class="card">
@@ -270,6 +288,7 @@
       const el = (id) => document.getElementById(id);
       const fRegular = el("fRegular");
       const fIrregular = el("fIrregular");
+      const fWeakOnly = el("fWeakOnly");
       const promptPerson = el("promptPerson");
       const promptJa = el("promptJa");
       const promptInf = el("promptInf");
@@ -284,6 +303,49 @@
       const correctAnswer = el("correctAnswer");
       const scoreChip = el("scoreChip");
       const streakChip = el("streakChip");
+      const weakChip = el("weakChip");
+      const resetWeakBtn = el("resetWeakBtn");
+
+      // ---- 苦手トラッキング（この端末のブラウザ内にのみ保存） ----
+      const STATS_KEY = "verbPracticeStats_es_v1";
+      function loadStats() {
+        try {
+          return JSON.parse(localStorage.getItem(STATS_KEY)) || {};
+        } catch (e) {
+          return {};
+        }
+      }
+      function saveStats() {
+        localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+      }
+      let stats = loadStats();
+
+      function itemKey(verb, personIdx) {
+        return `${verb.inf}|${personIdx}`;
+      }
+
+      function recordResult(verb, personIdx, gotItRight) {
+        const key = itemKey(verb, personIdx);
+        const s = stats[key] || { wrong: 0, correct: 0, needsReview: false };
+        if (gotItRight) {
+          s.correct += 1;
+          s.needsReview = false; // 1回正解できたら苦手リストから外す
+        } else {
+          s.wrong += 1;
+          s.needsReview = true;
+        }
+        stats[key] = s;
+        saveStats();
+        updateWeakChip();
+      }
+
+      function weakCount() {
+        return Object.values(stats).filter((s) => s.needsReview).length;
+      }
+
+      function updateWeakChip() {
+        weakChip.textContent = `苦手 ${weakCount()}件`;
+      }
 
       function stripAccents(s) {
         return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -292,7 +354,7 @@
         return (s || "").trim().toLowerCase();
       }
 
-      function pool() {
+      function typeFilteredVerbs() {
         const types = [];
         if (fRegular.checked) types.push("regular");
         if (fIrregular.checked) types.push("irregular");
@@ -300,10 +362,38 @@
         return verbs.length ? verbs : VERBS;
       }
 
+      // 動詞×6人称の全組み合わせを作り、苦手（needsReview）なものほど出やすくする
+      function buildCombos() {
+        const verbs = typeFilteredVerbs();
+        const combos = [];
+        verbs.forEach((verb) => {
+          PERSONS.forEach((_, personIdx) => {
+            const s = stats[itemKey(verb, personIdx)];
+            combos.push({ verb, personIdx, needsReview: !!(s && s.needsReview) });
+          });
+        });
+
+        if (fWeakOnly.checked) {
+          const weak = combos.filter((c) => c.needsReview);
+          if (weak.length) return weak; // 苦手が無ければ通常出題にフォールバック
+        }
+        return combos;
+      }
+
+      function weightedPick(combos) {
+        const weights = combos.map((c) => (c.needsReview ? 5 : 1)); // 苦手は5倍出やすい
+        const total = weights.reduce((a, b) => a + b, 0);
+        let r = Math.random() * total;
+        for (let i = 0; i < combos.length; i++) {
+          r -= weights[i];
+          if (r <= 0) return combos[i];
+        }
+        return combos[combos.length - 1];
+      }
+
       function nextQuestion() {
-        const verbs = pool();
-        const verb = verbs[Math.floor(Math.random() * verbs.length)];
-        const personIdx = Math.floor(Math.random() * PERSONS.length);
+        const combos = buildCombos();
+        const { verb, personIdx } = weightedPick(combos);
         state.current = { verb, personIdx };
         state.answered = false;
 
@@ -370,6 +460,8 @@
         }
         correctAnswer.textContent = `正解: ${PERSONS[personIdx].es} ${correct}`;
 
+        recordResult(verb, personIdx, status === "correct");
+
         answerInput.disabled = true;
         checkBtn.disabled = true;
       }
@@ -387,6 +479,7 @@
         resultMark.textContent = "→ スキップ";
         yourAnswer.textContent = "";
         correctAnswer.textContent = `正解: ${PERSONS[personIdx].es} ${verb.conj[personIdx]}`;
+        recordResult(verb, personIdx, false);
         answerInput.disabled = true;
         checkBtn.disabled = true;
       }
@@ -410,7 +503,16 @@
       fIrregular.addEventListener("change", () => {
         if (!fRegular.checked && !fIrregular.checked) fRegular.checked = true;
       });
+      fWeakOnly.addEventListener("change", nextQuestion);
+      resetWeakBtn.addEventListener("click", () => {
+        if (!confirm("苦手リストと正誤の記録をすべて消去します。よろしいですか？")) return;
+        stats = {};
+        saveStats();
+        updateWeakChip();
+        nextQuestion();
+      });
 
+      updateWeakChip();
       nextQuestion();
     </script>
   </body>
